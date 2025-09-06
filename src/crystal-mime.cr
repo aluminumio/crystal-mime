@@ -8,16 +8,18 @@ module MIME
   VERSION = "0.1.17"
 
   struct Email
-    property from
-    property to
-    property subject
-    property datetime
-    property body_html
-    property body_text
-    property attachments
-    property headers
-    def initialize(@from : String, @to : String, @subject : String, @datetime : Time | Nil, 
-        @body_html : String | Nil, @body_text : String | Nil, @attachments : Array(String), @headers : Hash(String, String))
+    property from : String?
+    property to : String?
+    property subject : String?
+    property datetime : Time?
+    property body_html : String?
+    property body_text : String?
+    property attachments : Array(String)
+    property headers : Hash(String, String)
+
+    def initialize(@from : String?, @to : String?, @subject : String?, @datetime : Time?,
+                  @body_html : String?, @body_text : String?, @attachments : Array(String),
+                  @headers : Hash(String, String))
     end
   end
 
@@ -81,6 +83,15 @@ module MIME
       end
     else
       body = mime_io.gets_to_end
+      # Decode single-part content by Content-Transfer-Encoding (if present)
+      if cte = headers["Content-Transfer-Encoding"]?
+        case cte.downcase
+        when "quoted-printable"
+          body = QuotedPrintable.decode_string(body)
+        when "base64"
+          body = Base64.decode_string(body)
+        end
+      end
     end
 
     return { headers: headers, parts: parts, body: body }
@@ -89,26 +100,28 @@ module MIME
   def self.mail_object_from_raw(raw_mime_data)
     parsed = parse_raw(raw_mime_data)
     # return Email.new(from: "", to: "", subject: "", datetime: nil, body_html: "", body_text: "", attachments: [] of String)
-    if parsed[:headers]["Date"]?
-      datetime = Time::Format::RFC_2822.parse(parsed[:headers]["Date"])
-    else
-      datetime = nil
-    end
-    # puts parsed.inspect
-    Email.new(from:     parsed[:headers]["From"],
-              to:       parsed[:headers]["To"]? || parsed[:headers]["recipient"],
-              subject:  parsed[:headers]["Subject"]? || "",    
+    datetime  = parsed[:headers]["Date"]? ?
+                  Time::Format::RFC_2822.parse(parsed[:headers]["Date"]) : nil
+
+    # If not multipart, parsed[:body] holds the content. Route it by Content-Type.
+    content_type = parsed[:headers]["Content-Type"]?
+    body_is_html = content_type && content_type.downcase.starts_with?("text/html")
+
+    Email.new(from:     parsed[:headers]["From"]?,
+              to:       parsed[:headers]["To"]? || parsed[:headers]["recipient"]?,
+              subject:  parsed[:headers]["Subject"]?,
               datetime: datetime,
-              body_html: parsed[:parts]["text/html"]?,
-              body_text: parsed[:parts]["text/plain"]?,
+              body_html: parsed[:parts]["text/html"]?  || (body_is_html ? parsed[:body] : nil),
+              body_text: parsed[:parts]["text/plain"]? || (body_is_html ? nil : parsed[:body]),
               attachments: [] of String,
-              headers: parsed[:headers]
-              )
+              headers:     parsed[:headers]
+            )
   end
 
   def self.is_multipart(content_type : Nil)
     return nil
   end
+  
   def self.is_multipart(content_type : String)
     if content_type =~ /^multipart/ 
         "#{MIME::Multipart.parse_boundary(content_type)}"
