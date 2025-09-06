@@ -7,6 +7,20 @@ require "./rfc2047"
 module MIME
   VERSION = "0.1.17"
 
+  struct Attachment
+    getter filename : String?
+    getter content_type : String
+    getter content_id : String?
+    getter inline : Bool
+    getter data : Bytes
+    def initialize(@content_type : String,
+                   @data : Bytes,
+                   @filename : String? = nil,
+                   @content_id : String? = nil,
+                   @inline : Bool = false)
+    end
+  end
+
   struct Email
     property from : String?
     property to : String?
@@ -14,11 +28,11 @@ module MIME
     property datetime : Time?
     property body_html : String?
     property body_text : String?
-    property attachments : Array(String)
+    property attachments : Array(Attachment)
     property headers : Hash(String, String)
 
     def initialize(@from : String?, @to : String?, @subject : String?, @datetime : Time?,
-                  @body_html : String?, @body_text : String?, @attachments : Array(String),
+                  @body_html : String?, @body_text : String?, @attachments : Array(Attachment),
                   @headers : Hash(String, String))
     end
   end
@@ -113,7 +127,7 @@ module MIME
               datetime: datetime,
               body_html: parsed[:parts]["text/html"]?  || (body_is_html ? parsed[:body] : nil),
               body_text: parsed[:parts]["text/plain"]? || (body_is_html ? nil : parsed[:body]),
-              attachments: [] of String,
+              attachments: [] of Attachment,
               headers:     parsed[:headers]
             )
   end
