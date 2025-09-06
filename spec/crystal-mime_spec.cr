@@ -31,4 +31,12 @@ describe MIME do
     str = RFC2047.decode("=?UTF-8?q?Yo_=F0=9F=90=95?=")
     str.should eq("Yo 🐕")
   end
+
+  it "parses non-multipart email (quoted-printable text)" do
+    raw   = File.read("spec/test-mime2.email")
+    email = MIME.mail_object_from_raw(raw)
+
+    body = email.body_text || raise "expected body_text to be present"
+    body.chomp.should eq "Test"
+  end
 end

@@ -83,6 +83,15 @@ module MIME
       end
     else
       body = mime_io.gets_to_end
+      # Decode single-part content by Content-Transfer-Encoding (if present)
+      if cte = headers["Content-Transfer-Encoding"]?
+        case cte.downcase
+        when "quoted-printable"
+          body = QuotedPrintable.decode_string(body)
+        when "base64"
+          body = Base64.decode_string(body)
+        end
+      end
     end
 
     return { headers: headers, parts: parts, body: body }
@@ -94,21 +103,25 @@ module MIME
     datetime  = parsed[:headers]["Date"]? ?
                   Time::Format::RFC_2822.parse(parsed[:headers]["Date"]) : nil
 
-    Email.new(
-      from:        parsed[:headers]["From"]?,
-      to:          parsed[:headers]["To"]? || parsed[:headers]["recipient"]?,
-      subject:     parsed[:headers]["Subject"]?,
-      datetime:    datetime,
-      body_html:   parsed[:parts]["text/html"]?,
-      body_text:   parsed[:parts]["text/plain"]?,
-      attachments: [] of String,
-      headers:     parsed[:headers]
-    )
+    # If not multipart, parsed[:body] holds the content. Route it by Content-Type.
+    content_type = parsed[:headers]["Content-Type"]?
+    body_is_html = content_type && content_type.downcase.starts_with?("text/html")
+
+    Email.new(from:     parsed[:headers]["From"]?,
+              to:       parsed[:headers]["To"]? || parsed[:headers]["recipient"]?,
+              subject:  parsed[:headers]["Subject"]?,
+              datetime: datetime,
+              body_html: parsed[:parts]["text/html"]?  || (body_is_html ? parsed[:body] : nil),
+              body_text: parsed[:parts]["text/plain"]? || (body_is_html ? nil : parsed[:body]),
+              attachments: [] of String,
+              headers:     parsed[:headers]
+            )
   end
 
   def self.is_multipart(content_type : Nil)
     return nil
   end
+  
   def self.is_multipart(content_type : String)
     if content_type =~ /^multipart/ 
         "#{MIME::Multipart.parse_boundary(content_type)}"
