@@ -67,6 +67,7 @@ module MIME
     end
     
     parts = Hash(String, String).new
+    attachments = [] of Attachment
     body  = nil
     content_type = headers["Content-Type"]?
     if (boundary = is_multipart(content_type))
@@ -106,9 +107,31 @@ module MIME
           body = Base64.decode_string(body)
         end
       end
+
+      # Route single-part by Content-Type:
+      ctype = (headers["Content-Type"]? || "text/plain").downcase
+      if ctype.starts_with?("text/html")
+        parts["text/html"] = body
+        body = nil
+      elsif ctype.starts_with?("text/plain") || ctype.starts_with?("text/")
+        parts["text/plain"] = body
+        body = nil
+      else
+        # Non-text single-part -> treat as attachment (filename later)
+        cid = headers["Content-ID"]?
+        inline = (headers["Content-Disposition"]? || "").downcase.starts_with?("inline")
+        attachments << Attachment.new(
+          ctype,
+          body.to_slice,
+          nil,
+          cid,
+          inline
+        )
+        body = nil
+      end
     end
 
-    return { headers: headers, parts: parts, body: body }
+    return { headers: headers, parts: parts, body: body, attachments: attachments }
   end
 
   def self.mail_object_from_raw(raw_mime_data)
