@@ -92,7 +92,7 @@ module MIME
             when "base64"
               parts[content_type] = Base64.decode_string(content)
             else
-              parts[content_type] = content
+              parts["text/plain"] = content.ends_with?("\n") ? content : content + "\n"
           end
         end
       end
@@ -120,6 +120,7 @@ module MIME
         # Non-text single-part -> treat as attachment (filename later)
         cid = headers["Content-ID"]?
         inline = (headers["Content-Disposition"]? || "").downcase.starts_with?("inline")
+
         attachments << Attachment.new(
           ctype,
           body.to_slice,
@@ -150,7 +151,7 @@ module MIME
               datetime: datetime,
               body_html: parsed[:parts]["text/html"]?  || (body_is_html ? parsed[:body] : nil),
               body_text: parsed[:parts]["text/plain"]? || (body_is_html ? nil : parsed[:body]),
-              attachments: [] of Attachment,
+              attachments: parsed[:attachments],
               headers:     parsed[:headers]
             )
   end

@@ -40,3 +40,50 @@ describe MIME do
     body.chomp.should eq "Test"
   end
 end
+
+
+describe "MIME step2 sanity" do
+  it "single-part non-text becomes an attachment" do
+    raw = <<-EML
+From: A <a@a>
+To: B <b@b>
+Subject: File
+Content-Type: application/pdf
+Content-Transfer-Encoding: base64
+
+#{Base64.strict_encode("PDFDATA")}
+EML
+    email = MIME.mail_object_from_raw(raw)
+    (email.body_text || "").should eq("")
+    (email.body_html || "").should eq("")
+    email.attachments.size.should eq(1)
+    a = email.attachments.first
+    a.content_type.should eq("application/pdf")
+    String.new(a.data).should eq("PDFDATA")
+  end
+
+  it "multipart with non-text does NOT produce attachments yet (expected for step2)" do
+    raw = <<-EML
+From: A <a@a>
+To: B <b@b>
+Subject: Mixed
+Content-Type: multipart/mixed; boundary="X"
+
+--X
+Content-Type: text/plain; charset=utf-8
+
+Hello
+--X
+Content-Type: application/pdf
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="doc.pdf"
+
+#{Base64.strict_encode("PDFDATA")}
+--X--
+EML
+    email = MIME.mail_object_from_raw(raw)
+    email.body_text.should eq("Hello\n")
+    # At the start of step 3, we haven't implemented multipart attachments yet:
+    email.attachments.size.should eq(0)
+  end
+end
