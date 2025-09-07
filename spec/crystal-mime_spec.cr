@@ -61,7 +61,7 @@ EML
     String.new(a.data).should eq("PDFDATA")
   end
 
-  it "multipart with non-text does NOT produce attachments yet (expected for step2)" do
+  it "multipart non-text becomes an attachment (current behavior)" do
     raw = <<-EML
 From: A <a@a>
 To: B <b@b>
@@ -83,7 +83,7 @@ EML
     email = MIME.mail_object_from_raw(raw)
     email.body_text.should eq("Hello\n")
     # At the start of step 3, we haven't implemented multipart attachments yet:
-    email.attachments.size.should eq(0)
+    email.attachments.size.should eq(1)
   end
 
 
@@ -103,5 +103,33 @@ EML
     a = email.attachments.first
     a.filename.should eq("report.pdf")
     a.content_type.should eq("application/pdf")
+  end
+
+  it "multipart non-text part becomes attachment and captures filename" do
+    raw = <<-EML
+From: A <a@a>
+To: B <b@b>
+Subject: Mixed
+Content-Type: multipart/mixed; boundary="X"
+
+--X
+Content-Type: text/plain; charset=utf-8
+
+Hello
+--X
+Content-Type: application/pdf
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="doc.pdf"
+
+#{Base64.strict_encode("PDFDATA")}
+--X--
+EML
+    email = MIME.mail_object_from_raw(raw)
+    email.body_text.should eq("Hello\n")
+    email.attachments.size.should eq(1)
+    a = email.attachments.first
+    a.content_type.should eq("application/pdf")
+    a.filename.should eq("doc.pdf")
+    String.new(a.data).should eq("PDFDATA")
   end
 end

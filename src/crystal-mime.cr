@@ -80,19 +80,35 @@ module MIME
       parser = MIME::Multipart::Parser.new(mime_io, boundary)
       while parser.has_next?
         parser.next do |headers, io|
-          content_type = headers["Content-Type"].split("; ", 2).first
-          content_transfer_encoding = headers["Content-Transfer-Encoding"]?
+          ct_raw = headers["Content-Type"]? || "text/plain"
+          ct_main = ct_raw.split(";", 2).first.downcase
+          cte = headers["Content-Transfer-Encoding"]?
           content = io.gets_to_end
-          # TODO: Handle the decoding of other content-transfer-encodings now.
-          case content_transfer_encoding
-            when "quoted-printable"
-              # RFC2045 Section 6.7 (Quoted Printable or quoted-printable).
-              # See also: https://www.hjp.at/doc/rfc/rfc1521.html
-              parts[content_type] = QuotedPrintable.decode_string(content)
-            when "base64"
-              parts[content_type] = Base64.decode_string(content)
-            else
-              parts["text/plain"] = content.ends_with?("\n") ? content : content + "\n"
+          case cte
+          when "quoted-printable"
+            content = QuotedPrintable.decode_string(content)
+          when "base64"
+            content = Base64.decode_string(content)
+          end
+          if ct_main.starts_with?("text/html")
+            parts["text/html"] = content
+          elsif ct_main.starts_with?("text/")
+            # keep your existing newline normalization for multipart text/plain
+            parts["text/plain"] = content.ends_with?("\n") ? content : content + "\n"
+          else
+            # Non-text multipart part → make an attachment (capture filename)
+            dispo  = headers["Content-Disposition"]?
+            cid    = headers["Content-ID"]?
+            cid    = cid.try { |x| x.gsub(/[<>]/, "") }
+            inline = (dispo || "").downcase.starts_with?("inline")
+            fname  = disposition_filename(dispo)
+            attachments << Attachment.new(
+              ct_main,
+              content.to_slice,
+              fname,
+              cid,
+              inline
+            )
           end
         end
       end
@@ -171,7 +187,6 @@ module MIME
   end
 
   # Extract filename="..." from a Content-Disposition header.
-  # (RFC2231/filename*= comes later in a later step.)
   private def self.disposition_filename(dispo : String?) : String?
     return nil unless dispo
     dispo.split(";").each do |seg|
