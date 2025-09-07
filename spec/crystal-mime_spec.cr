@@ -1,5 +1,6 @@
 require "./spec_helper"
 
+
 describe MIME do
   # [RFT1341](https://datatracker.ietf.org/doc/html/rfc1341#page-75)
   it "Ensure test mail is RFC 1341 compliant" do
@@ -41,7 +42,7 @@ describe MIME do
   end
 end
 
-describe "Attachments" do
+describe "MIME Attachments" do
   it "single-part non-text becomes an attachment" do
     raw = <<-EML
     From: A <a@a>

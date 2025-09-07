@@ -90,12 +90,46 @@ module MIME
     else
       body = mime_io.gets_to_end
       # Decode single-part content by Content-Transfer-Encoding (if present)
-      if cte = headers["Content-Transfer-Encoding"]?
+      ct_raw = headers["Content-Type"]?
+      cte    = headers["Content-Transfer-Encoding"]?
+
+      # Decide if we must go via BYTES (non-UTF-8 text/*) to avoid invalid UTF-8 String creation.
+      needs_bytes = false
+      if ct_raw
+        ct_main = ct_raw.split(";", 2).first.downcase
+        if ct_main.starts_with?("text/")
+          if cs = extract_charset(ct_raw)
+            needs_bytes = !(
+              cs.compare("utf-8", case_insensitive: true) == 0 ||
+              cs.compare("us-ascii", case_insensitive: true) == 0
+            )
+          end
+        end
+      end
+
+      if cte
         case cte.downcase
         when "quoted-printable"
-          body = QuotedPrintable.decode_string(body)
+          if needs_bytes
+            bytes = QuotedPrintable.decode(body)
+            body  = decode_text_bytes(bytes, extract_charset(ct_raw))
+          else
+            body = QuotedPrintable.decode_string(body)
+          end
         when "base64"
-          body = Base64.decode_string(body)
+          if needs_bytes
+            bytes = Base64.decode(body)
+            body  = decode_text_bytes(bytes, extract_charset(ct_raw))
+          else
+            body = Base64.decode_string(body)
+          end
+        end
+      end
+
+      # Identity CTE or post-CTE normalization: apply charset iff text/*
+      if ct_raw && ct_raw.split(";", 2).first.downcase.starts_with?("text/")
+        unless cte && needs_bytes
+          body = decode_text_bytes(body.to_slice, extract_charset(ct_raw))
         end
       end
 
@@ -262,12 +296,41 @@ module MIME
 
     # Leaf part: decode by CTE
     cte = headers["Content-Transfer-Encoding"]?
-    content = io.gets_to_end
+    content : String = io.gets_to_end
+
+    # For text/* with non-UTF-8 charset, go via BYTES during CTE decode.
+    needs_bytes = false
+    if ct_main.starts_with?("text/")
+      if (cs = extract_charset(ct_raw)) && !(
+           cs.compare("utf-8", case_insensitive: true) == 0 ||
+           cs.compare("us-ascii", case_insensitive: true) == 0
+         )
+        needs_bytes = true
+      end
+    end
+
     case cte
     when "quoted-printable"
-      content = QuotedPrintable.decode_string(content)
+      if needs_bytes
+        bytes   = QuotedPrintable.decode(content)
+        content = decode_text_bytes(bytes, extract_charset(ct_raw))
+      else
+        content = QuotedPrintable.decode_string(content)
+      end
     when "base64"
-      content = Base64.decode_string(content)
+      if needs_bytes
+        bytes   = Base64.decode(content)
+        content = decode_text_bytes(bytes, extract_charset(ct_raw))
+      else
+        content = Base64.decode_string(content)
+      end
+    end
+
+    # Identity CTE or post-CTE normalization: apply charset iff text/*
+    if ct_main.starts_with?("text/")
+      unless cte && needs_bytes
+        content = decode_text_bytes(content.to_slice, extract_charset(ct_raw))
+      end
     end
 
     if ct_main.starts_with?("text/html")
@@ -290,6 +353,90 @@ module MIME
         cid,
         inline
       )
+    end
+  end
+
+  private def self.extract_charset(ct_raw : String?) : String?
+    return nil unless ct_raw
+    if m = ct_raw.match(/;\s*charset\s*=\s*(?:"([^"]+)"|([^;\s]+))/i)
+      return m[1]? || m[2]?
+    end
+    nil
+  end
+
+  # Convert arbitrary single-byte encodings to UTF-8 String (minimal support).
+  # - UTF-8 / US-ASCII => return UTF-8 as-is
+  # - ISO-8859-1 / Latin1 / Windows-1252 / CP1252 => map bytes to U+0000..U+00FF
+  # - Fallback: try UTF-8, else Latin1 mapping
+  private def self.decode_text_bytes(bytes : Bytes, charset : String?) : String
+    cs = (charset || "").downcase
+    # 1) Explicit UTF-8 / US-ASCII ⇒ try UTF-8 as-is
+    if cs.includes?("utf-8") || cs == "us-ascii"
+      begin
+        return String.new(bytes)
+      rescue
+        # Fall through to single-byte mappings if invalid
+      end
+    end
+
+    # 2) Windows-1252 / CP1252 → proper mapping of 0x80..0x9F
+    if cs.includes?("windows-1252") || cs.includes?("cp1252")
+      return String.build do |io|
+        bytes.each do |b|
+          case b
+          when 0x80 then io << 0x20AC.unsafe_chr  # €
+          when 0x81 then io << 0x0081.unsafe_chr
+          when 0x82 then io << 0x201A.unsafe_chr  # ‚
+          when 0x83 then io << 0x0192.unsafe_chr  # ƒ
+          when 0x84 then io << 0x201E.unsafe_chr  # „
+          when 0x85 then io << 0x2026.unsafe_chr  # …
+          when 0x86 then io << 0x2020.unsafe_chr  # †
+          when 0x87 then io << 0x2021.unsafe_chr  # ‡
+          when 0x88 then io << 0x02C6.unsafe_chr  # ˆ
+          when 0x89 then io << 0x2030.unsafe_chr  # ‰
+          when 0x8A then io << 0x0160.unsafe_chr  # Š
+          when 0x8B then io << 0x2039.unsafe_chr  # ‹
+          when 0x8C then io << 0x0152.unsafe_chr  # Œ
+          when 0x8D then io << 0x008D.unsafe_chr
+          when 0x8E then io << 0x017D.unsafe_chr  # Ž
+          when 0x8F then io << 0x008F.unsafe_chr
+          when 0x90 then io << 0x0090.unsafe_chr
+          when 0x91 then io << 0x2018.unsafe_chr  # ‘
+          when 0x92 then io << 0x2019.unsafe_chr  # ’
+          when 0x93 then io << 0x201C.unsafe_chr  # “
+          when 0x94 then io << 0x201D.unsafe_chr  # ”
+          when 0x95 then io << 0x2022.unsafe_chr  # •
+          when 0x96 then io << 0x2013.unsafe_chr  # –
+          when 0x97 then io << 0x2014.unsafe_chr  # —
+          when 0x98 then io << 0x02DC.unsafe_chr  # ˜
+          when 0x99 then io << 0x2122.unsafe_chr  # ™
+          when 0x9A then io << 0x0161.unsafe_chr  # š
+          when 0x9B then io << 0x203A.unsafe_chr  # ›
+          when 0x9C then io << 0x0153.unsafe_chr  # œ
+          when 0x9D then io << 0x009D.unsafe_chr
+          when 0x9E then io << 0x017E.unsafe_chr  # ž
+          when 0x9F then io << 0x0178.unsafe_chr  # Ÿ
+          else
+            io << b.unsafe_chr # 1:1 for rest (0x00..0x7F, 0xA0..0xFF)
+          end
+        end
+      end
+    end
+
+    # 3) ISO-8859-1 / Latin1 → 1 byte → 1 codepoint U+0000..U+00FF
+    if cs.includes?("iso-8859-1") || cs.includes?("latin1")
+      return String.build do |io|
+        bytes.each { |b| io << b.unsafe_chr }
+      end
+    end
+
+    # 4) Unknown: try UTF-8 first, else map 1:1
+    begin
+      String.new(bytes)
+    rescue
+      String.build do |io|
+        bytes.each { |b| io << b.unsafe_chr }
+      end
     end
   end
 end
