@@ -44,14 +44,15 @@ end
 describe "Attachments" do
   it "single-part non-text becomes an attachment" do
     raw = <<-EML
-From: A <a@a>
-To: B <b@b>
-Subject: File
-Content-Type: application/pdf
-Content-Transfer-Encoding: base64
+    From: A <a@a>
+    To: B <b@b>
+    Subject: File
+    Content-Type: application/pdf
+    Content-Transfer-Encoding: base64
 
-#{Base64.strict_encode("PDFDATA")}
-EML
+    #{Base64.strict_encode("PDFDATA")}
+    EML
+
     email = MIME.mail_object_from_raw(raw)
     (email.body_text || "").should eq("")
     (email.body_html || "").should eq("")
@@ -63,23 +64,24 @@ EML
 
   it "multipart non-text becomes an attachment (current behavior)" do
     raw = <<-EML
-From: A <a@a>
-To: B <b@b>
-Subject: Mixed
-Content-Type: multipart/mixed; boundary="X"
+    From: A <a@a>
+    To: B <b@b>
+    Subject: Mixed
+    Content-Type: multipart/mixed; boundary="X"
 
---X
-Content-Type: text/plain; charset=utf-8
+    --X
+    Content-Type: text/plain; charset=utf-8
 
-Hello
---X
-Content-Type: application/pdf
-Content-Transfer-Encoding: base64
-Content-Disposition: attachment; filename="doc.pdf"
+    Hello
+    --X
+    Content-Type: application/pdf
+    Content-Transfer-Encoding: base64
+    Content-Disposition: attachment; filename="doc.pdf"
 
-#{Base64.strict_encode("PDFDATA")}
---X--
-EML
+    #{Base64.strict_encode("PDFDATA")}
+    --X--
+    EML
+
     email = MIME.mail_object_from_raw(raw)
     email.body_text.should eq("Hello\n")
     # At the start of step 3, we haven't implemented multipart attachments yet:
@@ -88,15 +90,15 @@ EML
 
   it "single-part non-text picks up filename from Content-Disposition" do
     raw = <<-EML
-From: A <a@a>
-To: B <b@b>
-Subject: File
-Content-Type: application/pdf
-Content-Transfer-Encoding: base64
-Content-Disposition: attachment; filename="report.pdf"
+    From: A <a@a>
+    To: B <b@b>
+    Subject: File
+    Content-Type: application/pdf
+    Content-Transfer-Encoding: base64
+    Content-Disposition: attachment; filename="report.pdf"
 
-#{Base64.strict_encode("PDFDATA")}
-EML
+    #{Base64.strict_encode("PDFDATA")}
+    EML
     email = MIME.mail_object_from_raw(raw)
     email.attachments.size.should eq(1)
     a = email.attachments.first
@@ -106,23 +108,24 @@ EML
 
   it "multipart non-text part becomes attachment and captures filename" do
     raw = <<-EML
-From: A <a@a>
-To: B <b@b>
-Subject: Mixed
-Content-Type: multipart/mixed; boundary="X"
+    From: A <a@a>
+    To: B <b@b>
+    Subject: Mixed
+    Content-Type: multipart/mixed; boundary="X"
 
---X
-Content-Type: text/plain; charset=utf-8
+    --X
+    Content-Type: text/plain; charset=utf-8
 
-Hello
---X
-Content-Type: application/pdf
-Content-Transfer-Encoding: base64
-Content-Disposition: attachment; filename="doc.pdf"
+    Hello
+    --X
+    Content-Type: application/pdf
+    Content-Transfer-Encoding: base64
+    Content-Disposition: attachment; filename="doc.pdf"
 
-#{Base64.strict_encode("PDFDATA")}
---X--
-EML
+    #{Base64.strict_encode("PDFDATA")}
+    --X--
+    EML
+
     email = MIME.mail_object_from_raw(raw)
     email.body_text.should eq("Hello\n")
     email.attachments.size.should eq(1)
@@ -134,15 +137,16 @@ EML
 
   it "decodes RFC2231 filename* in Content-Disposition" do
     raw = <<-EML
-From: A <a@a>
-To: B <b@b>
-Subject: File
-Content-Type: application/pdf
-Content-Transfer-Encoding: base64
-Content-Disposition: attachment; filename*=utf-8''%E2%9C%93-report.pdf
+    From: A <a@a>
+    To: B <b@b>
+    Subject: File
+    Content-Type: application/pdf
+    Content-Transfer-Encoding: base64
+    Content-Disposition: attachment; filename*=utf-8''%E2%9C%93-report.pdf
 
-#{Base64.strict_encode("PDFDATA")}
-EML
+    #{Base64.strict_encode("PDFDATA")}
+    EML
+
     email = MIME.mail_object_from_raw(raw)
     email.attachments.size.should eq(1)
     a = email.attachments.first
@@ -151,22 +155,23 @@ EML
 
   it "uses Content-Type; name= as filename when no Content-Disposition present (multipart)" do
     raw = <<-EML
-From: A <a@a>
-To: B <b@b>
-Subject: Mixed
-Content-Type: multipart/mixed; boundary="X"
+    From: A <a@a>
+    To: B <b@b>
+    Subject: Mixed
+    Content-Type: multipart/mixed; boundary="X"
 
---X
-Content-Type: text/plain; charset=utf-8
+    --X
+    Content-Type: text/plain; charset=utf-8
 
-Hello
---X
-Content-Type: application/pdf; name="report.pdf"
-Content-Transfer-Encoding: base64
+    Hello
+    --X
+    Content-Type: application/pdf; name="report.pdf"
+    Content-Transfer-Encoding: base64
 
-#{Base64.strict_encode("PDFDATA")}
---X--
-EML
+    #{Base64.strict_encode("PDFDATA")}
+    --X--
+    EML
+
     email = MIME.mail_object_from_raw(raw)
     email.attachments.size.should eq(1)
     a = email.attachments.first
@@ -175,14 +180,15 @@ EML
 
   it "decodes RFC2231 name* in Content-Type as fallback filename (single-part)" do
     raw = <<-EML
-From: A <a@a>
-To: B <b@b>
-Subject: File
-Content-Type: application/pdf; name*=utf-8''%E2%9C%93-plan.pdf
-Content-Transfer-Encoding: base64
+    From: A <a@a>
+    To: B <b@b>
+    Subject: File
+    Content-Type: application/pdf; name*=utf-8''%E2%9C%93-plan.pdf
+    Content-Transfer-Encoding: base64
 
-#{Base64.strict_encode("PDFDATA")}
-EML
+    #{Base64.strict_encode("PDFDATA")}
+    EML
+    
     email = MIME.mail_object_from_raw(raw)
     email.attachments.size.should eq(1)
     a = email.attachments.first
