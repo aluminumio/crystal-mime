@@ -61,11 +61,19 @@ module MIME
       elsif line.blank?
         break
       else
-        k,v = line.split(": ", 2)
-        last_key = k
+        # Be tolerant of headers with no space after ":" or even empty values
+        if idx = line.index(':')
+          k = line[0, idx]
+          v = line[(idx + 1)..-1]? || ""
+          v = v.lstrip                       # drop a single leading space if present
+          last_key = k
 
-        # Patch up subject (from =?UTF-8?q?Yo_=F0=9F=90=95?= => 🦂)
-        headers[k]=RFC2047.decode(v)
+          # Patch up subject (from =?UTF-8?q?Yo_=F0=9F=90=95?= => 🦂)
+          headers[k] = RFC2047.decode(v)
+        else
+          # Malformed header line without ":" – ignore it safely
+          next
+        end
       end
     end
     
@@ -147,7 +155,12 @@ module MIME
         dispo  = headers["Content-Disposition"]?
         ct_raw = headers["Content-Type"]?
         inline = (dispo || "").downcase.starts_with?("inline")
-        fname  = disposition_filename(dispo) || content_type_name(ct_raw)
+
+        raw_dispo = disposition_filename(dispo)
+        fname = sanitize_filename(raw_dispo)
+        if fname.nil?
+          fname = sanitize_filename(content_type_name(ct_raw))
+        end
 
         attachments << Attachment.new(
           ctype,
@@ -184,10 +197,17 @@ module MIME
             )
   end
 
-  def self.is_multipart(content_type : Nil)
-    return nil
+  # Return boundary string if content-type is multipart/* and has a boundary
+  def self.is_multipart(content_type : String?) : String?
+    return nil unless content_type
+    ct = content_type
+    return nil unless ct.downcase.includes?("multipart/")
+    if m = ct.match(/;\s*boundary\s*=\s*(?:"([^"]+)"|([^;\s]+))/i)
+      return m[1]? || m[2]?
+    end
+    nil
   end
-  
+
   def self.is_multipart(content_type : String)
     if content_type =~ /^multipart/ 
         "#{MIME::Multipart.parse_boundary(content_type)}"
@@ -209,17 +229,20 @@ module MIME
     # --- RFC 2231: filename*=<charset>''<percent-encoded> ---
     # Example: filename*=utf-8''%E2%9C%93-report.pdf
     if m = s.match(/;\s*filename\*\s*=\s*([^']*)''([^;]+)/i)
-      # charset = m[1] (unused right now)
-      encoded = m[2]
-      begin
-        decoded = URI.decode(encoded)
+      # charset = m[1]? (unused)
+      encoded = m[2]?
+      # If the capture isn't present for any reason, fall through to plain filename=
+      if encoded && !encoded.empty?
         begin
-          return RFC2047.decode(decoded)
+          decoded = URI.decode(encoded)
+          begin
+            return RFC2047.decode(decoded)
+          rescue
+            return decoded
+          end
         rescue
-          return decoded
+          # If percent-decoding fails, fall through and try plain filename=
         end
-      rescue
-        # If percent-decoding fails, fall through and try plain filename=
       end
     end
 
@@ -247,16 +270,18 @@ module MIME
   
     # RFC2231: name*=<charset>''<percent-encoded>
     if m = s.match(/;\s*name\*\s*=\s*([^']*)''([^;]+)/i)
-      encoded = m[2]
-      begin
-        decoded = URI.decode(encoded)
+      encoded = m[2]?
+      if encoded && !encoded.empty?
         begin
-          return RFC2047.decode(decoded)
+          decoded = URI.decode(encoded)
+          begin
+            return RFC2047.decode(decoded)
+          rescue
+            return decoded
+          end
         rescue
-          return decoded
+          # fall through to plain name=
         end
-      rescue
-        # fall through to plain name=
       end
     end
   
@@ -344,7 +369,12 @@ module MIME
       cid    = headers["Content-ID"]?
       cid    = cid.try { |x| x.gsub(/[<>]/, "") }
       inline = (dispo || "").downcase.starts_with?("inline")
-      fname  = disposition_filename(dispo) || content_type_name(ct_raw)
+      raw_dispo = disposition_filename(dispo)
+      fname = sanitize_filename(raw_dispo)
+     
+      if fname.nil?
+        fname = sanitize_filename(content_type_name(ct_raw))
+      end
 
       attachments << Attachment.new(
         ct_main,
@@ -438,5 +468,21 @@ module MIME
         bytes.each { |b| io << b.unsafe_chr }
       end
     end
+  end
+
+  # Normalize a potentially sketchy filename:
+  # - drop directories/backslashes
+  # - trim whitespace
+  # - remove control chars and NULLs
+  # - collapse empty => nil
+  private def self.sanitize_filename(name : String?) : String?
+    return nil unless name
+    n = name
+      .gsub("\\", "/")           # Windows to Unix slashes
+      .split("/").last? || ""    # keep only the final segment
+      .strip
+      .gsub(/[\x00-\x1F\x7F]/, "") # control chars
+    n = nil if n.empty?
+    n
   end
 end

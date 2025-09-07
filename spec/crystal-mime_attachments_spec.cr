@@ -189,4 +189,30 @@ describe "MIME Attachments" do
     email.attachments.size.should eq(1)
     email.attachments.first.filename.should eq("n.pdf")
   end
+
+  it "collapses empty filename to nil and strips path segments" do
+  raw = <<-EML
+    From: A <a@a>
+    To: B <b@b>
+    Subject: Mix
+    Content-Type: multipart/mixed; boundary="X"
+      
+    --X
+    Content-Type: text/plain; charset=utf-8
+      
+    Hi
+    --X
+    Content-Type: application/pdf; name="C:\\temp\\..\\report.pdf"
+    Content-Transfer-Encoding: base64
+    Content-Disposition: attachment; filename=""
+      
+    #{Base64.strict_encode("PDFDATA")}
+    --X--
+    EML
+  
+    email = MIME.mail_object_from_raw(raw)
+    email.attachments.size.should eq(1)
+    a = email.attachments.first
+    a.filename.should eq("report.pdf") # from sanitized CT name (since filename="" -> nil)
+  end
 end
