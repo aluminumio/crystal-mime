@@ -1,4 +1,5 @@
 require "mime/multipart"
+require "http"
 require "uri"
 require "time"
 require "quoted_printable"
@@ -82,36 +83,8 @@ module MIME
       parser = MIME::Multipart::Parser.new(mime_io, boundary)
       while parser.has_next?
         parser.next do |headers, io|
-          ct_raw = headers["Content-Type"]? || "text/plain"
-          ct_main = ct_raw.split(";", 2).first.downcase
-          cte = headers["Content-Transfer-Encoding"]?
-          content = io.gets_to_end
-          case cte
-          when "quoted-printable"
-            content = QuotedPrintable.decode_string(content)
-          when "base64"
-            content = Base64.decode_string(content)
-          end
-          if ct_main.starts_with?("text/html")
-            parts["text/html"] = content
-          elsif ct_main.starts_with?("text/")
-            # keep your existing newline normalization for multipart text/plain
-            parts["text/plain"] = content.ends_with?("\n") ? content : content + "\n"
-          else
-            # Non-text multipart part → make an attachment (capture filename)
-            dispo  = headers["Content-Disposition"]?
-            cid    = headers["Content-ID"]?
-            cid    = cid.try { |x| x.gsub(/[<>]/, "") }
-            inline = (dispo || "").downcase.starts_with?("inline")
-            fname  = disposition_filename(dispo) || content_type_name(ct_raw)
-            attachments << Attachment.new(
-              ct_main,
-              content.to_slice,
-              fname,
-              cid,
-              inline
-            )
-          end
+          # Delegate to the helper (handles both leaf and nested multipart)
+          process_mime_part(headers, io, parts, attachments)
         end
       end
     else
@@ -260,5 +233,63 @@ module MIME
     end
   
     nil
+  end
+
+  # Process a single MIME part (recurses on multipart/*) ---
+  private def self.process_mime_part(headers : HTTP::Headers, io : IO, parts : Hash(String, String), attachments : Array(Attachment))
+    ct_raw  = headers["Content-Type"]? || "text/plain"
+    ct_main = ct_raw.split(";", 2).first.downcase
+
+    # If this part is itself multipart/*, recurse into its boundary
+    if ct_main.starts_with?("multipart/")
+      # extract boundary if present
+      boundary = nil
+      if m = ct_raw.match(/;\s*boundary\s*=\s*(?:"([^"]+)"|([^;\s]+))/i)
+        boundary = (m[1]? || m[2]?)
+      end
+      return unless boundary
+
+      # Normalize line endings for stdlib parser (CRLF)
+      normalized = io.gets_to_end.gsub("\r\n", "\n").gsub("\n", "\r\n")
+      sub = MIME::Multipart::Parser.new(IO::Memory.new(normalized), boundary)
+      while sub.has_next?
+        sub.next do |sh, sio|
+          process_mime_part(sh, sio, parts, attachments)
+        end
+      end
+      return
+    end
+
+    # Leaf part: decode by CTE
+    cte = headers["Content-Transfer-Encoding"]?
+    content = io.gets_to_end
+    case cte
+    when "quoted-printable"
+      content = QuotedPrintable.decode_string(content)
+    when "base64"
+      content = Base64.decode_string(content)
+    end
+
+    if ct_main.starts_with?("text/html")
+      parts["text/html"] = content
+    elsif ct_main.starts_with?("text/")
+      # keep existing newline normalization for multipart text/plain
+      parts["text/plain"] = content.ends_with?("\n") ? content : content + "\n"
+    else
+      # Non-text → attachment; get filename from Disposition or CT name
+      dispo  = headers["Content-Disposition"]?
+      cid    = headers["Content-ID"]?
+      cid    = cid.try { |x| x.gsub(/[<>]/, "") }
+      inline = (dispo || "").downcase.starts_with?("inline")
+      fname  = disposition_filename(dispo) || content_type_name(ct_raw)
+
+      attachments << Attachment.new(
+        ct_main,
+        content.to_slice,
+        fname,
+        cid,
+        inline
+      )
+    end
   end
 end

@@ -188,10 +188,45 @@ describe "Attachments" do
 
     #{Base64.strict_encode("PDFDATA")}
     EML
-    
+
     email = MIME.mail_object_from_raw(raw)
     email.attachments.size.should eq(1)
     a = email.attachments.first
     a.filename.should eq("✓-plan.pdf")
+  end
+
+  it "handles nested multipart (alternative inside mixed) and still extracts attachment" do
+    raw = <<-EML
+    From: A <a@a>
+    To: B <b@b>
+    Subject: Nested
+    Content-Type: multipart/mixed; boundary="outer"
+
+    --outer
+    Content-Type: multipart/alternative; boundary="alt"
+
+    --alt
+    Content-Type: text/plain; charset=utf-8
+
+    Hello nested
+    --alt
+    Content-Type: text/html; charset=utf-8
+
+    <b>Hello nested</b>
+    --alt--
+    --outer
+    Content-Type: application/pdf
+    Content-Transfer-Encoding: base64
+    Content-Disposition: attachment; filename="n.pdf"
+
+    #{Base64.strict_encode("PDFDATA")}
+    --outer--
+    EML
+
+    email = MIME.mail_object_from_raw(raw)
+    email.body_text.should eq("Hello nested\n")
+    email.body_html.not_nil!.should contain("Hello nested")
+    email.attachments.size.should eq(1)
+    email.attachments.first.filename.should eq("n.pdf")
   end
 end
