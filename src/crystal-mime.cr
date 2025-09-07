@@ -118,13 +118,15 @@ module MIME
         body = nil
       else
         # Non-text single-part -> treat as attachment (filename later)
-        cid = headers["Content-ID"]?
-        inline = (headers["Content-Disposition"]? || "").downcase.starts_with?("inline")
+        cid    = headers["Content-ID"]?
+        dispo  = headers["Content-Disposition"]?
+        inline = (dispo || "").downcase.starts_with?("inline")
+        fname  = disposition_filename(dispo)
 
         attachments << Attachment.new(
           ctype,
           body.to_slice,
-          nil,
+          fname,
           cid,
           inline
         )
@@ -167,4 +169,26 @@ module MIME
       nil
     end
   end
+
+  # Extract filename="..." from a Content-Disposition header.
+  # (RFC2231/filename*= comes later in a later step.)
+  private def self.disposition_filename(dispo : String?) : String?
+    return nil unless dispo
+    dispo.split(";").each do |seg|
+      seg = seg.strip
+      next unless seg.size >= 9 && seg[0,9].downcase == "filename="
+      val = seg[9..-1]
+      next unless val
+      val = val.strip
+      if val.size >= 2 &&
+         ((val[0] == '"' && val[-1] == '"') || (val[0] == '\'' && val[-1] == '\''))
+        val = val[1..-2]
+      end
+      # basic unescape for quoted value (very conservative)
+      val = val.gsub("\\\"", "\"")
+      return val
+    end
+    nil
+  end
 end
+

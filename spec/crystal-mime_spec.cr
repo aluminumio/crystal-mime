@@ -41,8 +41,7 @@ describe MIME do
   end
 end
 
-
-describe "MIME step2 sanity" do
+describe "Multipart Attachments" do
   it "single-part non-text becomes an attachment" do
     raw = <<-EML
 From: A <a@a>
@@ -85,5 +84,24 @@ EML
     email.body_text.should eq("Hello\n")
     # At the start of step 3, we haven't implemented multipart attachments yet:
     email.attachments.size.should eq(0)
+  end
+
+
+  it "single-part non-text picks up filename from Content-Disposition" do
+    raw = <<-EML
+From: A <a@a>
+To: B <b@b>
+Subject: File
+Content-Type: application/pdf
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="report.pdf"
+
+#{Base64.strict_encode("PDFDATA")}
+EML
+    email = MIME.mail_object_from_raw(raw)
+    email.attachments.size.should eq(1)
+    a = email.attachments.first
+    a.filename.should eq("report.pdf")
+    a.content_type.should eq("application/pdf")
   end
 end
