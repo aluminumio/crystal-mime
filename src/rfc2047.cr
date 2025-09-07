@@ -1,7 +1,6 @@
 require "quoted_printable"
 
 module RFC2047
-
   WORD = /=\?([!#$\%&'*+-\/0-9A-Z\\^\`a-z{|}~]+)\?([BbQq])\?([!->@-~]+)\?=/
 
   # Look for two adjacent words in the same encoding.
@@ -11,9 +10,9 @@ module RFC2047
   # character set, +target+ defaulting to utf-8. See iconv_open(3) for information on the
   # supported target encodings. If one of the encoded words cannot be
   # converted to the target encoding, it is left in its encoded form.
-  def self.decode(from : String, target : String="utf-8")
+  def self.decode(from : String, target : String = "utf-8")
     from.gsub(ADJACENT_WORDS, "\\1").gsub(WORD) do |word|
-      #cs = $1
+      # cs = $1
       encoding = $2
       text = $3
       # B64 or QP decode, as necessary:
