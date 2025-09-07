@@ -1,6 +1,8 @@
 require "mime/multipart"
+require "uri"
 require "time"
 require "quoted_printable"
+
 require "./rfc2047"
 
 # `MIME` Provides raw email parsing capabilities
@@ -101,7 +103,7 @@ module MIME
             cid    = headers["Content-ID"]?
             cid    = cid.try { |x| x.gsub(/[<>]/, "") }
             inline = (dispo || "").downcase.starts_with?("inline")
-            fname  = disposition_filename(dispo)
+            fname  = disposition_filename(dispo) || content_type_name(ct_raw)
             attachments << Attachment.new(
               ct_main,
               content.to_slice,
@@ -136,8 +138,9 @@ module MIME
         # Non-text single-part -> treat as attachment (filename later)
         cid    = headers["Content-ID"]?
         dispo  = headers["Content-Disposition"]?
+        ct_raw = headers["Content-Type"]?
         inline = (dispo || "").downcase.starts_with?("inline")
-        fname  = disposition_filename(dispo)
+        fname  = disposition_filename(dispo) || content_type_name(ct_raw)
 
         attachments << Attachment.new(
           ctype,
@@ -222,6 +225,40 @@ module MIME
       return (RFC2047.decode(value) rescue value)
     end
 
+    nil
+  end
+
+  # Extract name from Content-Type header as a fallback filename.
+  # Supports:
+  #   name="plain.ext"
+  #   name=plain.ext
+  #   name*=utf-8''percent-encoded.ext   (RFC 2231)
+  # Also tries RFC 2047 decoding when present.
+  private def self.content_type_name(ct_raw : String?) : String?
+    return nil unless ct_raw
+    s = ct_raw
+  
+    # RFC2231: name*=<charset>''<percent-encoded>
+    if m = s.match(/;\s*name\*\s*=\s*([^']*)''([^;]+)/i)
+      encoded = m[2]
+      begin
+        decoded = URI.decode(encoded)
+        begin
+          return RFC2047.decode(decoded)
+        rescue
+          return decoded
+        end
+      rescue
+        # fall through to plain name=
+      end
+    end
+  
+    # Plain name=... (quoted or unquoted)
+    if m = s.match(/;\s*name\s*=\s*(?:"([^"]*)"|([^;\s]+))/i)
+      value = m[1]? || m[2]? || ""
+      return (RFC2047.decode(value) rescue value)
+    end
+  
     nil
   end
 end
