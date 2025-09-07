@@ -186,24 +186,42 @@ module MIME
     end
   end
 
-  # Extract filename="..." from a Content-Disposition header.
+  # Extract filename from Content-Disposition header.
+  # Supports:
+  #   filename="plain.ext"
+  #   filename=plain.ext
+  #   filename*=utf-8''percent-encoded.ext   (RFC 2231)
+  # Also tries RFC 2047 decoding when present.
   private def self.disposition_filename(dispo : String?) : String?
     return nil unless dispo
-    dispo.split(";").each do |seg|
-      seg = seg.strip
-      next unless seg.size >= 9 && seg[0,9].downcase == "filename="
-      val = seg[9..-1]
-      next unless val
-      val = val.strip
-      if val.size >= 2 &&
-         ((val[0] == '"' && val[-1] == '"') || (val[0] == '\'' && val[-1] == '\''))
-        val = val[1..-2]
+    s = dispo
+
+    # --- RFC 2231: filename*=<charset>''<percent-encoded> ---
+    # Example: filename*=utf-8''%E2%9C%93-report.pdf
+    if m = s.match(/;\s*filename\*\s*=\s*([^']*)''([^;]+)/i)
+      # charset = m[1] (unused right now)
+      encoded = m[2]
+      begin
+        decoded = URI.decode(encoded)
+        begin
+          return RFC2047.decode(decoded)
+        rescue
+          return decoded
+        end
+      rescue
+        # If percent-decoding fails, fall through and try plain filename=
       end
-      # basic unescape for quoted value (very conservative)
-      val = val.gsub("\\\"", "\"")
-      return val
     end
+
+    # --- Plain filename=... (quoted or unquoted) ---
+    # Examples:
+    #   filename="report.pdf"
+    #   filename=report.pdf
+    if m = s.match(/;\s*filename\s*=\s*(?:"([^"]*)"|([^;\s]+))/i)
+      value = m[1]? || m[2]? || ""
+      return (RFC2047.decode(value) rescue value)
+    end
+
     nil
   end
 end
-

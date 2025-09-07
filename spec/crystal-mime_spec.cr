@@ -5,7 +5,7 @@ describe MIME do
   it "Ensure test mail is RFC 1341 compliant" do
     # Ensure CRLF's are present in test:
     f = File.read("spec/test-mime1.email")
-    crlf = f.gsub(/\r\n/,"\n").gsub(/\n/,"\r\n")
+    crlf = f.gsub(/\r\n/, "\n").gsub(/\n/, "\r\n")
     f.should eq(crlf)
   end
 
@@ -13,7 +13,7 @@ describe MIME do
   it "Parses test1 email" do
     # Ensure CRLF's are present in test:
     f = File.read("spec/test-mime1.email")
-    crlf = f.gsub(/\r\n/,"\n").gsub(/\n/,"\r\n")
+    crlf = f.gsub(/\r\n/, "\n").gsub(/\n/, "\r\n")
 
     email = MIME.mail_object_from_raw(crlf)
     email.from.should eq("Jerry Peek <jerry@ora.com>")
@@ -23,7 +23,7 @@ describe MIME do
     body_text = email.body_text
     body_text.should be_a(String)
     body_text && body_text.should start_with("We've just released")
-    
+
     true.should eq(true)
   end
 
@@ -33,7 +33,7 @@ describe MIME do
   end
 
   it "parses non-multipart email (quoted-printable text)" do
-    raw   = File.read("spec/test-mime2.email")
+    raw = File.read("spec/test-mime2.email")
     email = MIME.mail_object_from_raw(raw)
 
     body = email.body_text || raise "expected body_text to be present"
@@ -41,7 +41,7 @@ describe MIME do
   end
 end
 
-describe "Multipart Attachments" do
+describe "Attachments" do
   it "single-part non-text becomes an attachment" do
     raw = <<-EML
 From: A <a@a>
@@ -85,7 +85,6 @@ EML
     # At the start of step 3, we haven't implemented multipart attachments yet:
     email.attachments.size.should eq(1)
   end
-
 
   it "single-part non-text picks up filename from Content-Disposition" do
     raw = <<-EML
@@ -131,5 +130,22 @@ EML
     a.content_type.should eq("application/pdf")
     a.filename.should eq("doc.pdf")
     String.new(a.data).should eq("PDFDATA")
+  end
+
+  it "decodes RFC2231 filename* in Content-Disposition" do
+    raw = <<-EML
+From: A <a@a>
+To: B <b@b>
+Subject: File
+Content-Type: application/pdf
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename*=utf-8''%E2%9C%93-report.pdf
+
+#{Base64.strict_encode("PDFDATA")}
+EML
+    email = MIME.mail_object_from_raw(raw)
+    email.attachments.size.should eq(1)
+    a = email.attachments.first
+    a.filename.should eq("✓-report.pdf")
   end
 end
