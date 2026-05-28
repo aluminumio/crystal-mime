@@ -74,29 +74,50 @@ describe MIME do
     end
   end
 
-  describe "Parses email with multipart inside multipart" do
-    it "with multipart alternative inside mixed" do
-      f = {{ read_file("#{__DIR__}/test-mime-with-mixed-multipart.eml") }}
-      email = MIME.mail_object_from_raw(f)
-      expected_html_body = <<-PLAIN
-      <p>We see you&rsquo;re trying to create (or update) your XXX account. Use the following security code to verify your info. This code will only be valid for 20 minutes.</p>
-      <p>Your one-time security code: <span style="text-decoration: underline;"><strong>456748</strong></span></p>
-      <p><b>DO NOT SHARE.</b> Only enter it online.  Our reps will never ask for it.</p>
-      <p>If you didn&rsquo;t make this request, contact us immediately at 111-111-1113.</p>
-      <p>XXX</p>
-      PLAIN
-      expected_html_body = expected_html_body.gsub(/\r\n/, "\n").gsub(/\n/, "\r\n")
-      email.body_html.should eq expected_html_body
+  it "Parses email with multipart inside multipart" do
+    f = {{ read_file("#{__DIR__}/test-mime-with-mixed-multipart.eml") }}
+    email = MIME.mail_object_from_raw(f)
+    expected_html_body = <<-PLAIN
+    <p>We see you&rsquo;re trying to create (or update) your XXX account. Use the following security code to verify your info. This code will only be valid for 20 minutes.</p>
+    <p>Your one-time security code: <span style="text-decoration: underline;"><strong>456748</strong></span></p>
+    <p><b>DO NOT SHARE.</b> Only enter it online.  Our reps will never ask for it.</p>
+    <p>If you didn&rsquo;t make this request, contact us immediately at 111-111-1113.</p>
+    <p>XXX</p>
+    PLAIN
+    expected_html_body = expected_html_body.gsub(/\r\n/, "\n").gsub(/\n/, "\r\n")
+    email.body_html.should eq expected_html_body
 
-      expected_text_body = <<-PLAIN
-      We see you are trying to create (or update) your XXX account. Use the following security code to verify your info. This code will only be valid for 20 minutes.
-      Your one-time security code: 456748
-      DO NOT SHARE. Only enter it online.  Our reps will never ask for it.
-      If you didn&rsquo;t make this request, contact us immediately at 111-111-1113.
-      XXX
-      PLAIN
-      expected_text_body = expected_text_body.gsub(/\r\n/, "\n").gsub(/\n/, "\r\n")
-      email.body_text.should eq expected_text_body
-    end
+    expected_text_body = <<-PLAIN
+    We see you are trying to create (or update) your XXX account. Use the following security code to verify your info. This code will only be valid for 20 minutes.
+    Your one-time security code: 456748
+    DO NOT SHARE. Only enter it online.  Our reps will never ask for it.
+    If you didn&rsquo;t make this request, contact us immediately at 111-111-1113.
+    XXX
+    PLAIN
+    expected_text_body = expected_text_body.gsub(/\r\n/, "\n").gsub(/\n/, "\r\n")
+    email.body_text.should eq expected_text_body
+  end
+
+  it "parses email header with name and value on different lines" do
+    f = {{ read_file("#{__DIR__}/test-mime-header-on-2-lines.email") }}
+    email = MIME.mail_object_from_raw(f)
+    email.subject.should eq "Anti-spam test email"
+    email.headers["X-Antispam"].should eq "BCL:0;ARA:13230040|376014|69100299015|61400799027|7149299003|18002099003|56012099006|19003699004|16102099003|4076899003|8096899003;"
+  end
+
+  it "parses quoted printable body with trailing =" do
+    f = {{ read_file("#{__DIR__}/test-mime-with-trailing-equal-sign.email") }}
+    email = MIME.mail_object_from_raw(f)
+
+    expected_text_body = <<-PLAIN
+    Hello. I'm sending you the link to the form that you need to fill to complete the registration process.
+
+    http://example.com/form
+
+    Please make sure to fill the form before it expires. You only have 24 hours!
+
+    PLAIN
+
+    email.body_text.should eq expected_text_body
   end
 end

@@ -5,7 +5,7 @@ require "./rfc2047"
 
 # `MIME` Provides raw email parsing capabilities
 module MIME
-  VERSION = "0.1.17"
+  VERSION = "0.1.18"
 
   struct Email
     property from
@@ -48,7 +48,7 @@ module MIME
       elsif line.blank?
         break
       else
-        k, v = line.split(": ", 2)
+        k, v = line.split(":", 2).map &.strip
         last_key = k
 
         # Patch up subject (from =?UTF-8?q?Yo_=F0=9F=90=95?= => 🦂)
@@ -71,7 +71,7 @@ module MIME
         when "quoted-printable"
           # RFC2045 Section 6.7 (Quoted Printable or quoted-printable).
           # See also: https://www.hjp.at/doc/rfc/rfc1521.html
-          final_content = QuotedPrintable.decode_string(content)
+          final_content = self.decode_quoted_printable(content)
         when "base64"
           final_content = Base64.decode_string(content)
         else
@@ -123,7 +123,7 @@ module MIME
           when "quoted-printable"
             # RFC2045 Section 6.7 (Quoted Printable or quoted-printable).
             # See also: https://www.hjp.at/doc/rfc/rfc1521.html
-            parts[content_type] = QuotedPrintable.decode_string(content)
+            parts[content_type] = self.decode_quoted_printable(content)
           when "base64"
             parts[content_type] = Base64.decode_string(content)
           else
@@ -136,7 +136,7 @@ module MIME
       content_transfer_encoding = headers["Content-Transfer-Encoding"]?
       case content_transfer_encoding
       when "quoted-printable"
-        body = QuotedPrintable.decode_string(body)
+        body = self.decode_quoted_printable(body)
       when "base64"
         body = Base64.decode_string(body)
       end
@@ -190,5 +190,22 @@ module MIME
     else
       nil
     end
+  end
+
+  # Since quoted-printable library we're using has a bug (it crashes at the line
+  # that ends with "=\n" because it only expects "=\r\n") let's make
+  # a workaround here
+  def self.decode_quoted_printable(input : String) : String
+    remaining = input
+    output = ""
+    while remaining.presence
+      line, separator, remaining = remaining.partition("\n")
+      if line.ends_with?("=")
+        output += QuotedPrintable.decode_string(line[...-1])
+      else
+        output += QuotedPrintable.decode_string(line) + "\n"
+      end
+    end
+    output
   end
 end
