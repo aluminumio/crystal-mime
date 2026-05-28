@@ -1,0 +1,11 @@
+From: John Doe <johndoe@example.com>
+To: anna.smith@example.com
+Subject:
+  Anti-spam test email
+Content-Type: text/plain; charset=utf-8
+MIME-Version: 1.0
+X-Antispam:
+  BCL:0;ARA:13230040|376014|69100299015|61400799027|7149299003|18002099003|56012099006|19003699004|16102099003|4076899003|8096899003;
+
+This is a test email. Please do not reply on it.
+
