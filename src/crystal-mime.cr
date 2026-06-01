@@ -199,8 +199,11 @@ module MIME
     remaining = input
     output = ""
     while remaining.presence
-      line, separator, remaining = remaining.partition("\n")
-      if line.ends_with?("=")
+      line, _, remaining = remaining.partition("\n")
+      case line
+      when .ends_with?("=\r")
+        output += QuotedPrintable.decode_string(line[...-2])
+      when .ends_with?("=")
         output += QuotedPrintable.decode_string(line[...-1])
       else
         output += QuotedPrintable.decode_string(line) + "\n"

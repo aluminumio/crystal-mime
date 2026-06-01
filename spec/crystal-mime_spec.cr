@@ -105,19 +105,39 @@ describe MIME do
     email.headers["X-Antispam"].should eq "BCL:0;ARA:13230040|376014|69100299015|61400799027|7149299003|18002099003|56012099006|19003699004|16102099003|4076899003|8096899003;"
   end
 
-  it "parses quoted printable body with trailing =" do
-    f = {{ read_file("#{__DIR__}/test-mime-with-trailing-equal-sign.email") }}
-    email = MIME.mail_object_from_raw(f)
+  describe "parses quoted printable body with trailing =" do
+    it "with unix line endings" do
+      f = {{ read_file("#{__DIR__}/test-mime-quoted-printable-body-unix.email") }}
+      email = MIME.mail_object_from_raw(f)
 
-    expected_text_body = <<-PLAIN
-    Hello. I'm sending you the link to the form that you need to fill to complete the registration process.
+      expected_text_body = <<-PLAIN
+      Hello. I'm sending you the link to the form that you need to fill to complete the registration process.
 
-    http://example.com/form
+      http://example.com/form
 
-    Please make sure to fill the form before it expires. You only have 24 hours!
+      Please make sure to fill the form before it expires. You only have 24 hours!
 
-    PLAIN
+      PLAIN
 
-    email.body_text.should eq expected_text_body
+      email.body_text.should eq expected_text_body
+    end
+
+    it "with dos line endings" do
+      f = {{ read_file("#{__DIR__}/test-mime-quoted-printable-body-dos.email") }}
+      email = MIME.mail_object_from_raw(f)
+
+      expected_text_body = <<-PLAIN
+      Hello. I'm sending you the link to the form that you need to fill to complete the registration process.
+
+      http://example.com/form
+
+      Please make sure to fill the form before it expires. You only have 24 hours!
+
+      PLAIN
+      # Convert unix line ends from this file to dos format
+      expected_text_body = expected_text_body.gsub("\n", "\r\n")
+
+      email.body_text.should eq expected_text_body
+    end
   end
 end
