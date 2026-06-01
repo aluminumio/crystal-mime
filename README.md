@@ -49,3 +49,4 @@ TODO: Write development instructions here
 ## Contributors
 
 - [Jonathan Siegel](https://github.com/usiegj00) - creator and maintainer
+- [Anton Karankevich](https://github.com/anton7c3) - some fixes from real use cases

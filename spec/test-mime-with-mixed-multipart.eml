@@ -1,0 +1,34 @@
+Date: Sun, 22 Feb 2026 22:34:17 +0000
+From: Spruce <noreply@example.com>
+To: no-reply@brightsec.com
+Message-ID: <0100019c877d3bf7-e0edf583-d938-4711-8d12-a8004e47e9db-000000@email.kek.com>
+Subject: =?UTF-8?Q?Here=E2=80=99s_your_XXX_security_code?=
+MIME-Version: 1.0
+Content-Type: multipart/mixed; 
+	boundary="----=_Part_422038_20213577.1771799657421"
+
+------=_Part_422038_20213577.1771799657421
+Content-Type: multipart/alternative; 
+	boundary="----=_Part_422037_1345844982.1771799657420"
+
+------=_Part_422037_1345844982.1771799657420
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: 7bit
+
+<p>We see you&rsquo;re trying to create (or update) your XXX account. Use the following security code to verify your info. This code will only be valid for 20 minutes.</p>
+<p>Your one-time security code: <span style="text-decoration: underline;"><strong>456748</strong></span></p>
+<p><b>DO NOT SHARE.</b> Only enter it online.  Our reps will never ask for it.</p>
+<p>If you didn&rsquo;t make this request, contact us immediately at 111-111-1113.</p>
+<p>XXX</p>
+------=_Part_422037_1345844982.1771799657420
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 7bit
+
+We see you are trying to create (or update) your XXX account. Use the following security code to verify your info. This code will only be valid for 20 minutes.
+Your one-time security code: 456748
+DO NOT SHARE. Only enter it online.  Our reps will never ask for it.
+If you didn&rsquo;t make this request, contact us immediately at 111-111-1113.
+XXX
+------=_Part_422037_1345844982.1771799657420--
+
+------=_Part_422038_20213577.1771799657421--

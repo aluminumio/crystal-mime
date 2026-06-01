@@ -1,0 +1,8 @@
+From: John Doe <johndoe@example.com>
+To: anna.smith@example.com
+Subject: A new vacation is opened
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: base64
+MIME-Version: 1.0
+
+SGVsbG8sIEFubmEuCkEgbmV3IHZhY2F0aW9uIGlzIGF2YWlsYWJsZSBhdCB0aGUgb2ZmaWNlLiBQbGVhc2UgbGV0IG1lIGtub3cgaWYgeW91J3JlIGludGVyZXN0ZWQuClNpbmNlcmVseSwgSm9uaC4=

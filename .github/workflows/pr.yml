@@ -1,0 +1,32 @@
+name: Format, Lint, Build, Specs
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check_format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Crystal
+        uses: crystal-lang/install-crystal@v1
+        with:
+          crystal: 1.16.3
+      - name: Format check
+        run: crystal tool format --check
+
+  run_specs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Crystal
+        uses: crystal-lang/install-crystal@v1
+        with:
+          crystal: 1.16.3
+      - name: Install shards
+        run: shards install
+      - name: Run specs
+        run: crystal spec spec/

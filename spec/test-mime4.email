@@ -1,0 +1,22 @@
+From: John Doe <johndoe@example.com>
+To: anna.smith@example.com
+Subject: A new vacation is opened
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="----- =_aaaaaaaaaa0"
+Content-ID: <1283.780402430.1@ora.com>
+
+------- =_aaaaaaaaaa0
+Content-Type: text/plain; charset=utf-8
+Content-ID: <1283.780402430.2@ora.com>
+Content-Transfer-Encoding: base64
+
+SGVsbG8sIEFubmEuCkEgbmV3IHZhY2F0aW9uIGlzIGF2YWlsYWJsZSBhdCB0aGUgb2ZmaWNlLiBQbGVhc2UgbGV0IG1lIGtub3cgaWYgeW91J3JlIGludGVyZXN0ZWQuClNpbmNlcmVseSwgSm9uaC4=
+
+------- =_aaaaaaaaaa0
+Content-Type: text/html; charset=utf-8
+Content-ID: <1283.780402430.2@ora.com>
+Content-Transfer-Encoding: base64
+
+PGgxPkhlbGxvLCBBbm5hLjwvaDE+CjxwPkEgbmV3IHZhY2F0aW9uIGlzIGF2YWlsYWJsZSBhdCB0aGUgb2ZmaWNlLiBQbGVhc2UgbGV0IG1lIGtub3cgaWYgeW91J3JlIGludGVyZXN0ZWQuPC9wPgo8aHI+CjxwPlNpbmNlcmVseSwgSm9uaC48L3A+
+
+------- =_aaaaaaaaaa0--
