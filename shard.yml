@@ -1,5 +1,5 @@
 name: crystal-mime
-version: 0.1.17
+version: 0.1.18
 
 authors:
   - Jonathan Siegel <usiegj00@gmail.com>
@@ -9,7 +9,7 @@ crystal: 1.7.2
 
 dependencies:
   quoted_printable:
-    github: arcage/crystal-quotedprintable
-    version: 0.1.3
+    github: aluminumio/crystal-quotedprintable
+    branch: master
 
 license: MIT
