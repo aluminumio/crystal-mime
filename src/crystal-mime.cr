@@ -22,6 +22,34 @@ module MIME
   end
 
   # Support easy access with String
+# Convert bare LF line endings to CRLF in a single pass. Returns the
+  # input unchanged (no copy) when it is already CRLF-only — the common
+  # case for mail received over SMTP. Lone CRs pass through untouched,
+  # matching the previous gsub(/\r\n/, "\n").gsub(/\n/, "\r\n") behavior
+  # without its three full-body copies.
+  def self.normalize_crlf(data : String) : String
+    bytes = data.to_slice
+    needs_fix = false
+    i = 0
+    while i < bytes.size
+      if bytes[i] == 0x0A_u8 && (i == 0 || bytes[i - 1] != 0x0D_u8)
+        needs_fix = true
+        break
+      end
+      i += 1
+    end
+    return data unless needs_fix
+
+    String.build(data.bytesize + 64) do |str|
+      prev = 0_u8
+      bytes.each do |b|
+        str.write_byte 0x0D_u8 if b == 0x0A_u8 && prev != 0x0D_u8
+        str.write_byte b
+        prev = b
+      end
+    end
+  end
+
   def self.parse_raw(mime_str : String)
     self.parse_raw(IO::Memory.new(mime_str))
   end
@@ -54,10 +82,9 @@ module MIME
     body  = nil
     content_type = headers["Content-Type"]?
     if (boundary = is_multipart(content_type))
-      # Should not be necessary, except that MIME::Multipart::Parser is too strict requiring CRLF
+      # MIME::Multipart::Parser requires strict CRLF line endings:
       # https://github.com/crystal-lang/crystal/blob/master/src/mime/multipart/parser.cr
-      mime = mime_io.gets_to_end.gsub(/\r\n/, "\n").gsub(/\n/, "\r\n")
-      # puts "MIME: #{mime.inspect}"
+      mime = normalize_crlf(mime_io.gets_to_end)
       mime_io = IO::Memory.new(mime)
 
       parser = MIME::Multipart::Parser.new(mime_io, boundary)

@@ -31,4 +31,43 @@ describe MIME do
     str = RFC2047.decode("=?UTF-8?q?Yo_=F0=9F=90=95?=")
     str.should eq("Yo 🐕")
   end
+
+  describe ".normalize_crlf" do
+    it "returns the same object when input is already CRLF-only (no copy)" do
+      input = "a\r\nb\r\nc"
+      MIME.normalize_crlf(input).should be(input)
+    end
+
+    it "converts bare LF to CRLF" do
+      MIME.normalize_crlf("a\nb\nc").should eq("a\r\nb\r\nc")
+    end
+
+    it "handles mixed LF and CRLF" do
+      MIME.normalize_crlf("a\r\nb\nc").should eq("a\r\nb\r\nc")
+    end
+
+    it "handles LF at start of input" do
+      MIME.normalize_crlf("\nabc").should eq("\r\nabc")
+    end
+
+    it "leaves lone CR untouched (matches previous gsub behavior)" do
+      input = "a\rb\r\nc"
+      MIME.normalize_crlf(input).should be(input)
+    end
+
+    it "matches the previous double-gsub on the test corpus" do
+      f = File.read("spec/test-mime1.email")
+      lf_only = f.gsub(/\r\n/, "\n")
+      MIME.normalize_crlf(lf_only).should eq(lf_only.gsub(/\r\n/, "\n").gsub(/\n/, "\r\n"))
+    end
+
+    it "parses a multipart email given with LF-only line endings" do
+      lf_email = File.read("spec/test-mime1.email").gsub(/\r\n/, "\n")
+      email = MIME.mail_object_from_raw(lf_email)
+      email.from.should eq("Jerry Peek <jerry@ora.com>")
+      body_text = email.body_text
+      body_text.should be_a(String)
+      body_text && body_text.should start_with("We've just released")
+    end
+  end
 end
