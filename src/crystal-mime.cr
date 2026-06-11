@@ -16,13 +16,14 @@ module MIME
     property body_text
     property attachments
     property headers
-    def initialize(@from : String, @to : String, @subject : String, @datetime : Time | Nil, 
-        @body_html : String | Nil, @body_text : String | Nil, @attachments : Array(String), @headers : Hash(String, String))
+
+    def initialize(@from : String, @to : String, @subject : String, @datetime : Time | Nil,
+                   @body_html : String | Nil, @body_text : String | Nil, @attachments : Array(String), @headers : Hash(String, String))
     end
   end
 
   # Support easy access with String
-# Convert bare LF line endings to CRLF in a single pass. Returns the
+  # Convert bare LF line endings to CRLF in a single pass. Returns the
   # input unchanged (no copy) when it is already CRLF-only — the common
   # case for mail received over SMTP. Lone CRs pass through untouched,
   # matching the previous gsub(/\r\n/, "\n").gsub(/\n/, "\r\n") behavior
@@ -57,29 +58,37 @@ module MIME
   # Support efficient access as IO Stream
   # Mail looks like:
   # Content-Type=multipart%2Fmixed%3B+boundary%3D%22------------020601070403020003080006%22&Date=Fri%2...
-  def self.parse_raw(mime_io : IO, boundary : String | Nil = nil )
+  def self.parse_raw(mime_io : IO, boundary : String | Nil = nil)
     # Read headers in KEY: VAL format. RFC end is \n\n
     headers = Hash(String, String).new
     last_key = "MISSING"
     mime_io.each_line do |line|
-      if line.starts_with?(/[\t ]/)        # Can have leading spaces or tabs
-        if(last_key=="MISSING")
+      if line.starts_with?(/[\t ]/) # Can have leading spaces or tabs
+        if (last_key == "MISSING")
           puts "Unlikely that this is intended. Seeing line without a key:\n#{line}"
         end
-        headers[last_key] += line.lstrip() # Append everything but the spaces
+        headers[last_key] += line.lstrip # Append everything but the spaces
       elsif line.blank?
         break
       else
-        k,v = line.split(": ", 2)
+        # RFC 5322 §2.2: the colon may be followed by zero or more WSP —
+        # "Key:value" is legal. Split on the colon alone and strip
+        # leading whitespace from the value (Postel: parse tolerantly).
+        parts = line.split(":", 2)
+        if parts.size < 2
+          puts "Skipping malformed header line (no colon): #{line[0..60]}"
+          next
+        end
+        k, v = parts[0], parts[1].lstrip
         last_key = k
 
         # Patch up subject (from =?UTF-8?q?Yo_=F0=9F=90=95?= => 🦂)
-        headers[k]=RFC2047.decode(v)
+        headers[k] = RFC2047.decode(v)
       end
     end
-    
+
     parts = Hash(String, String).new
-    body  = nil
+    body = nil
     content_type = headers["Content-Type"]?
     if (boundary = is_multipart(content_type))
       # MIME::Multipart::Parser requires strict CRLF line endings:
@@ -95,14 +104,14 @@ module MIME
           content = io.gets_to_end
           # TODO: Handle the decoding of other content-transfer-encodings now.
           case content_transfer_encoding
-            when "quoted-printable"
-              # RFC2045 Section 6.7 (Quoted Printable or quoted-printable).
-              # See also: https://www.hjp.at/doc/rfc/rfc1521.html
-              parts[content_type] = QuotedPrintable.decode_string(content)
-            when "base64"
-              parts[content_type] = Base64.decode_string(content)
-            else
-              parts[content_type] = content
+          when "quoted-printable"
+            # RFC2045 Section 6.7 (Quoted Printable or quoted-printable).
+            # See also: https://www.hjp.at/doc/rfc/rfc1521.html
+            parts[content_type] = QuotedPrintable.decode_string(content)
+          when "base64"
+            parts[content_type] = Base64.decode_string(content)
+          else
+            parts[content_type] = content
           end
         end
       end
@@ -110,7 +119,7 @@ module MIME
       body = mime_io.gets_to_end
     end
 
-    return { headers: headers, parts: parts, body: body }
+    return {headers: headers, parts: parts, body: body}
   end
 
   def self.mail_object_from_raw(raw_mime_data)
@@ -122,23 +131,24 @@ module MIME
       datetime = nil
     end
     # puts parsed.inspect
-    Email.new(from:     parsed[:headers]["From"],
-              to:       parsed[:headers]["To"]? || parsed[:headers]["recipient"],
-              subject:  parsed[:headers]["Subject"]? || "",    
-              datetime: datetime,
-              body_html: parsed[:parts]["text/html"]?,
-              body_text: parsed[:parts]["text/plain"]?,
-              attachments: [] of String,
-              headers: parsed[:headers]
-              )
+    Email.new(from: parsed[:headers]["From"],
+      to: parsed[:headers]["To"]? || parsed[:headers]["recipient"],
+      subject: parsed[:headers]["Subject"]? || "",
+      datetime: datetime,
+      body_html: parsed[:parts]["text/html"]?,
+      body_text: parsed[:parts]["text/plain"]?,
+      attachments: [] of String,
+      headers: parsed[:headers]
+    )
   end
 
   def self.is_multipart(content_type : Nil)
     return nil
   end
+
   def self.is_multipart(content_type : String)
-    if content_type =~ /^multipart/ 
-        "#{MIME::Multipart.parse_boundary(content_type)}"
+    if content_type =~ /^multipart/
+      "#{MIME::Multipart.parse_boundary(content_type)}"
     else
       nil
     end
