@@ -99,7 +99,11 @@ module MIME
       parser = MIME::Multipart::Parser.new(mime_io, boundary)
       while parser.has_next?
         parser.next do |headers, io|
-          content_type = headers["Content-Type"].split("; ", 2).first
+          # RFC 2045 §5.2: a body part with no Content-Type defaults to
+          # "text/plain; charset=us-ascii" — it is not an error. This was a
+          # raising lookup, so one such part aborted the parse of the whole
+          # message.
+          content_type = (headers["Content-Type"]? || "text/plain").split("; ", 2).first
           content_transfer_encoding = headers["Content-Transfer-Encoding"]?
           content = io.gets_to_end
           # TODO: Handle the decoding of other content-transfer-encodings now.
@@ -131,8 +135,17 @@ module MIME
       datetime = nil
     end
     # puts parsed.inspect
-    Email.new(from: parsed[:headers]["From"],
-      to: parsed[:headers]["To"]? || parsed[:headers]["recipient"],
+    # Absent originator/destination fields yield "", never a raise. RFC 5322
+    # §3.6 makes only `From:` and `Date:` mandatory — `To:`/`Cc:`/`Bcc:` are
+    # OPTIONAL, so a Bcc-only message legitimately has no `To:` at all, and
+    # DSNs frequently omit it. `From:` is mandatory but real mail violates
+    # that, and a parser is the wrong place to enforce it: refusing to parse
+    # loses the whole message, while "" lets the caller decide. The `recipient`
+    # fallback is likewise optional — it used to be a raising lookup, so a
+    # message with neither `To:` nor `recipient` raised KeyError("recipient"),
+    # which is confusing on top of being wrong.
+    Email.new(from: parsed[:headers]["From"]? || "",
+      to: parsed[:headers]["To"]? || parsed[:headers]["recipient"]? || "",
       subject: parsed[:headers]["Subject"]? || "",
       datetime: datetime,
       body_html: parsed[:parts]["text/html"]?,
