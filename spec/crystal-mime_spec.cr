@@ -32,6 +32,30 @@ describe MIME do
     str.should eq("Yo 🐕")
   end
 
+  it "decodes every encoded-word, not only the first" do
+    # A real doorkeeper.jp From: header, verbatim from the retry queue. Three
+    # adjacent B-words then the addr-spec. The expected value is what Python's
+    # email.header produces for the same bytes -- an independent decoder, not
+    # this one. The old `return` inside the gsub block exited decode() after the
+    # first word and dropped the other two AND the address.
+    hdr = "=?UTF-8?B?44Oe44K444K744Ofw5fmpa3li5noh6rli5XljJbjg7vlirnnjofljJbvvIg=?= " \
+          "=?UTF-8?B?44OH44K444K/44Or44Go44Gu5paw44Gf44Gq5Ye65Lya44GE44Go5L2T6aiT?= " \
+          "=?UTF-8?B?77yJIHZpYSBEb29ya2VlcGVy?= <info@doorkeeper.jp>"
+    RFC2047.decode(hdr).should eq(
+      "マジセミ×業務自動化・効率化（デジタルとの新たな出会いと体験） via Doorkeeper <info@doorkeeper.jp>")
+  end
+
+  it "keeps plain text that follows an encoded-word" do
+    # The address after a non-ASCII display name is the whole point of the
+    # header; it was being thrown away.
+    hdr = "=?UTF-8?B?44Oe44K444K744Of?= <info@doorkeeper.jp>"
+    RFC2047.decode(hdr).should eq "マジセミ <info@doorkeeper.jp>"
+  end
+
+  it "leaves a header with no encoded-word untouched" do
+    RFC2047.decode("\"Plain Name\" <info@example.com>").should eq "\"Plain Name\" <info@example.com>"
+  end
+
   describe ".normalize_crlf" do
     it "returns the same object when input is already CRLF-only (no copy)" do
       input = "a\r\nb\r\nc"
