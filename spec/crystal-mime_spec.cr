@@ -32,6 +32,25 @@ describe MIME do
     str.should eq("Yo 🐕")
   end
 
+  it "decodes every encoded-word, not only the first" do
+    # Three adjacent B-words then the addr-spec. The expected value is what
+    # Python's email.header produces for the same bytes -- an independent
+    # decoder, not this one. The old `return` inside the gsub block exited
+    # decode() after the first word and dropped the other two AND the address.
+    hdr = "=?UTF-8?B?44OG44K544OI?= =?UTF-8?B?6YCB5L+h6ICF?= =?UTF-8?B?77yI44K144Oz44OX44Or77yJ?= <sender@example.com>"
+    RFC2047.decode(hdr).should eq("テスト送信者（サンプル） <sender@example.com>")
+  end
+
+  it "keeps plain text that follows an encoded-word" do
+    # The address after a non-ASCII display name is the whole point of the
+    # header; it was being thrown away.
+    RFC2047.decode("=?UTF-8?B?44OG44K544OI?= <sender@example.com>").should eq "テスト <sender@example.com>"
+  end
+
+  it "leaves a header with no encoded-word untouched" do
+    RFC2047.decode("\"Plain Name\" <info@example.com>").should eq "\"Plain Name\" <info@example.com>"
+  end
+
   describe ".normalize_crlf" do
     it "returns the same object when input is already CRLF-only (no copy)" do
       input = "a\r\nb\r\nc"

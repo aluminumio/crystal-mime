@@ -29,7 +29,10 @@ module RFC2047
       else
         raise Unparseable.new(from)
       end
-      return text
+      # `next`, not `return`: inside a gsub block `return` leaves decode()
+      # itself on the first match, discarding every later encoded-word and any
+      # plain text after it -- including the <addr-spec> on a From: header.
+      next text
     end
   end
 
